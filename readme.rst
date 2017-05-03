@@ -1,6 +1,6 @@
-===============
-Mail_Merge_Scheduler
-===============
+===========================
+Mail_Merge_Scheduler - Beta
+===========================
 
 Allows the user, to programmatically create a task for Windows Task Scheduler,
 to take data from a database type that is supported by sqlalchemy, based on a
@@ -219,7 +219,7 @@ See the LICENSE file for details.
  link: https://github.com/D-Chase-H/mail_merge_scheduler/blob/master/LICENSE
 
 Planned Features - Distant/Near Future
-==============================
+======================================
 * Pip installation.
 * A gui, which is already in the works.
 
