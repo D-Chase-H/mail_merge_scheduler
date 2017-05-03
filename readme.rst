@@ -145,11 +145,13 @@ Optionally:
  "Merged" + the name of the template .docx document + a number In the above
  example, the docx file created from the mail merge would be named,
  Merged_Building Inspections_1.docx.
-  NOTE: the mail merged .docx document is saved in the same folder as the template .docx document.
+NOTE: 
+ The mail merged .docx document is saved in the same folder as the template .docx document.
 
-  NOTE: if there is already a Merged_Building Inspections_1.docx in that folder,
-  then +1 will be added to the trailing number until it finds a file without
-  that name.
+NOTE: 
+ If there is already a Merged_Building Inspections_1.docx in that folder,
+ then +1 will be added to the trailing number until it finds a file without
+ that name.
 
 
 Step 2: Set Up The Scheduling
@@ -198,10 +200,11 @@ The config file will look like this.
     {'output_docx_name': None}, {'week_int': 1}, {'sched_days':
     ['2017-04-24 16:15:00', '2017-04-25 16:15:00', '2017-04-26
     16:15:00', '2017-04-27 16:15:00', '2017-04-28 16:15:00']}]
+    
 
-  Note: The script that will be called from Windows Task Scheduler is not the
-  same script that the user will use to set up a new scheduled mail merge. The
-  script called by Windows Task Scheduler is schedules.py.
+NOTE: 
+ The script that will be called from Windows Task Scheduler is schedules.py, 
+ which is not the same script that the user will use to set up a new scheduled mail merge.
 
 Since sometimes files get deleted, the end-user may manually enter in incorrect
 data to the schedules.ini file, or sometimes "things" may just change in
