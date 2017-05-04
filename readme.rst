@@ -257,4 +257,4 @@ Acknowledgments
   and powerful programming can be!
 - A tip of the hat to all the open source third-party libraries used in
   this project!
-- Thank you to all those who contributed with pull requests!
+- Thank you to all those who contribute with pull requests!
