@@ -233,11 +233,18 @@ Wish List
 Credits
 =======
 
-This library was written by `Dustin Chase Harmon`. I go by Chase.
+This library was created by `Dustin Chase Harmon`. I go by Chase.
 
     * My LinkedIn: www.linkedin.com/in/dustinchaseharmon
 
     * My HackerRanks.com Profile: https://www.hackerrank.com/CHarmon
+
+Contributing
+============
+Under normal circumstances I should get to pull requests within a few hours or by the next day.
+This is my first repository, so bear with me if I can't get to your requests right away.
+
+Please, send a pull request with your changes, and comments are appreciated.
 
 Acknowledgments
 ===============
@@ -248,5 +255,6 @@ Acknowledgments
   and information so anyone can teach themselves programming.
 - The Google Foo.Bar challenge team and HackerRanks.com for showing me how fun
   and powerful programming can be!
-- And a tip of the hat to all the open source third-party libraries used in
+- A tip of the hat to all the open source third-party libraries used in
   this project!
+- Thank you to all those who contributed with pull requests!
