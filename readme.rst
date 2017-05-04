@@ -173,7 +173,7 @@ Scheduling is done as a weekly scheduled task for the sake of simplicity.
 
 Optionally:
  You can pass in a start_day for when you want Windows Task
- Scheduler to start running the scheduled task.
+ Scheduler to start running the scheduled task. The default start day is the current day.
 
 Step 3: Generate/Finalize
 =========================
