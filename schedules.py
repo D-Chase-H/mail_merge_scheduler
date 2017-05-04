@@ -30,8 +30,7 @@ def create_logger():
     new_logger = logging.getLogger(__name__)
     new_logger.setLevel(logging.ERROR)
 
-    seperator = ["_"]*80
-    seperator = ''.join(seperator)
+    seperator = "_"*80
     logger_format = "{}\n%(asctime)s\n%(message)s\n".format(seperator)
     formatter = logging.Formatter(logger_format)
 
