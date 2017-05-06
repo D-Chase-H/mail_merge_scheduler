@@ -2,7 +2,7 @@
 # This module is part of mail_merge_scheduler and is released under
 # the MIT License: http://www.opensource.org/licenses/mit-license.php
 
-"""This is the module that the user will import and uses to set up a scheduled
+"""This is the module that the user imports and uses to set up a scheduled
 mail merges, with data taken from database types supported by sqlalchemy. It
 will write the information to the schedules.ini file and uses the xml template
 to schedule the task through Windows Task Scheduler. The user can also use this
