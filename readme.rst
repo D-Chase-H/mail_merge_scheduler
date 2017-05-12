@@ -1,5 +1,5 @@
 ===========================
-Mail_Merge_Scheduler - Beta
+Mail_Merge_Scheduler - v1.0.0 pre-release
 ===========================
 
 Allows the user, to programmatically create a task for Windows Task Scheduler,
