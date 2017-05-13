@@ -21,6 +21,7 @@ import os
 import sys
 import subprocess
 # Third-party imports
+from bs4 import BeautifulSoup
 from lxml import etree
 import sqlalchemy
 
@@ -45,7 +46,7 @@ def remove_scheduled_merge(scheduled_merge_key):
     """
 
     module_path = __file__
-    path, tail = os.path.split(module_path)
+    path = os.path.split(module_path)[0]
     config_path = r"{}\scheduled_merges.ini".format(path)
     config = configparser.ConfigParser()
     config.optionxform = str
@@ -148,7 +149,7 @@ class ScheduledMerge(object):
         # Path information for the location of the module, in order to find the
         # location of the config file, schedules.ini.
         module_path = __file__
-        self.path, tail = os.path.split(module_path)
+        self.path = os.path.split(module_path)[0]
         self.config_path = r"{}\scheduled_merges.ini".format(self.path)
 
 
@@ -371,8 +372,8 @@ class ScheduledMerge(object):
             A list of datetime.datetime objects.
         """
 
-        # A Dictionary for converting the number that is returned from
-        # datetime.weekday(), into the string representation of the day's name.
+        # A Dictionary for converting the string representation of a day's name
+        # into the number that correlates with datetime.weekday() for that day.
         weekday_conv = {
             "Monday":0, "Tuesday":1, "Wednesday":2, "Thursday":3,
             "Friday":4, "Saturday":5, "Sunday":6}
@@ -416,11 +417,42 @@ class ScheduledMerge(object):
         return datetime_days
 
 
-    # pylint: disable=too-many-locals
-    # pylint: disable=too-many-branches
-    # pylint: disable=too-many-statements
     # pylint: disable=no-member
-    # pylint: disable=anomalous-backslash-in-string
+    def find_windowless_python_path(self):
+        """Tries to find the windowless python executable in the same folder as
+        the python executable that is running the script. If the windowless
+        python executable does not follow typical naming conventions, and
+        cannot be found, then the python executable being used to run the
+        script is returned instead. This is the python executable that will be
+        used when Windows Task Scheduler calls the schedules.py script.
+
+        Returns:
+            A string for the file path to a python executable.
+
+        Raises:
+            None.
+        """
+
+        pyth_path = '\\'.join(sys.executable.split('\\')[0:-1])
+        files_in_pyth_path = os.listdir(pyth_path)
+        python_variations = ["python", "Python", "PYTHON"]
+        windowless_pyth_path = ""
+
+        for file_name in files_in_pyth_path:
+            for var in  python_variations:
+                if var in file_name:
+                    if "w" in file_name or "W" in file_name:
+                        windowless_pyth_path = "{}\\{}".format(
+                            pyth_path, file_name)
+
+        # If the windowless python executable couldnt be found, then use the
+        # windowed executable that is being used to run the script.
+        if not windowless_pyth_path:
+            windowless_pyth_path = sys.executable
+
+        return windowless_pyth_path
+
+
     def xml_gen(self, task_name):
         """Uses the weekly schedule xml template for Windows Task Scheduler,
         and replaces specific data in the xml tree, then writes the xml as
@@ -443,103 +475,72 @@ class ScheduledMerge(object):
                 9(v=vs.85).aspx .
         """
 
-        weekday_conv = {
-            0:"Monday", 1:"Tuesday", 2:"Wednesday", 3:"Thursday",
-            4:"Friday", 5:"Saturday", 6:"Sunday"}
-
+        xml_template = r"{}\weekly_xml_schedule_template.xml".format(self.path)
         next_date = self.start_day
         next_time = self.sched_time
         week_int = self.week_int
         days = self.sched_days
 
+        weekday_conv = {
+            0:"Monday", 1:"Tuesday", 2:"Wednesday", 3:"Thursday",
+            4:"Friday", 5:"Saturday", 6:"Sunday"}
         days = [weekday_conv[d.weekday()] for d in days]
-
-        xml_template = r"{}\weekly_xml_schedule_template.xml".format(self.path)
-
-        dom = os.getenv("USERDOMAIN")
-        user = os.getenv("USERNAME")
-        dn_un = "{}\{}".format(dom, user)
 
         today = datetime.today().date()
         curr_time = datetime.today().time()
         creation_datetime = "{}T{}".format(today, curr_time)
-
         next_date = "{}T{}".format(next_date, next_time)
 
-        # Tries to find the windowless version of the version of python being
-        # used to run the script. The search is done using typical naming
-        # conventions for python, but if it cannot be found, then the normal
-        # version of python will be used.
-        pyth_path = '\\'.join(sys.executable.split('\\')[0:-1])
-        files_in_pyth_path = os.listdir(pyth_path)
-        python_variations = ["python", "Python", "PYTHON"]
-        windowless_pyth_path = ""
+        dom = os.getenv("USERDOMAIN")
+        user = os.getenv("USERNAME")
+        dn_un = r"{}\{}".format(dom, user)
 
-        for file_name in files_in_pyth_path:
-            for var in  python_variations:
-                if var in file_name:
-                    if "w" in file_name or "W" in file_name:
-                        windowless_pyth_path = "{}\\{}".format(
-                            pyth_path, file_name)
-
-        # If the windowless python executable couldnt be found, then use the
-        # windowed executable that is being used to run the script.
-        if not windowless_pyth_path:
-            windowless_pyth_path = sys.executable
-
-        # name of the script that Windows Task Scheduler will run.
+        windowless_pyth_path = self.find_windowless_python_path()
         script_name = r"{}\schedules.py".format(self.path)
-
         curr_dir = os.getcwd()
         curr_dir = r"{}".format(curr_dir)
 
-        tree = etree.parse(xml_template)
-
-        for ele in tree.iter():
-            # The prefix is set to
-            # http://schemas.microsoft.com/windows/2004/02/mit/task
-            # This should work on all versions of Windows newer than, and
-            # including, Windows Vista.
-            prefix = str(ele.tag)[:55]
-            tag_name = str(ele.tag)[55:]
-
-            if tag_name == "Date":
-                ele.text = creation_datetime
-
-            if tag_name == "Author":
-                ele.text = dn_un
-
-            if tag_name == "Description":
-                ele.text = "Scheduled Mail Merge"
-
-            if tag_name == "StartBoundary":
-                ele.text = next_date
-
-            if tag_name == "WeeksInterval":
-                ele.text = str(week_int)
-
-            if tag_name == "DaysOfWeek":
-                for day in days:
-                    etree.SubElement(ele, "{}{}".format(prefix, day))
-
-            if tag_name == "UserId":
-                ele.text = dn_un
-
-            if tag_name == "Command":
-                ele.text = r"{}".format(windowless_pyth_path)
-
-            if tag_name == "Arguments":
-                ele.text = script_name
-
-            if tag_name == "WorkingDirectory":
-                ele.text = curr_dir
-
         xml_name = r"{}\out_xml.xml".format(self.path)
-        tree.write(xml_name, xml_declaration=None, encoding='UTF-16')
 
-        # Import the generated xml into Windows task Scheduler via a subprocess
-        # batch script.
-        self.import_task_to_win_task_sched(xml_name, task_name)
+        with open(xml_template, "r") as template_file:
+            soup = BeautifulSoup(template_file, "lxml-xml")
+
+            soup.Date.string = creation_datetime
+            soup.Author.string = dn_un
+            soup.StartBoundary.string = next_date
+            soup.WeeksInterval.string = str(week_int)
+            soup.UserId.string = dn_un
+            soup.Command.string = r"{}".format(windowless_pyth_path)
+            soup.Arguments.string = script_name
+            soup.WorkingDirectory.string = curr_dir
+
+            day_soupify = {
+                "Monday":soup.Monday,
+                "Tuesday":soup.Tuesday,
+                "Wednesday":soup.Wednesday,
+                "Thursday":soup.Thursday,
+                "Friday":soup.Friday,
+                "Saturday":soup.Saturday,
+                "Sunday":soup.Sunday}
+            day_soupify = {k:v for k, v in day_soupify.items() if k not in days}
+            for val in day_soupify.values():
+                val.decompose()
+
+            template_file.close()
+
+        out_xml = r"{}\out_xml.xml".format(self.path)
+
+        with open(out_xml, "w") as output_xml:
+            output_xml.write(soup.prettify())
+            output_xml.close()
+
+        # Overwrite the out_xml.xml in utf-16 encoding, so can be imported into
+        # Windows Task Scheduler.
+        tree = etree.parse(out_xml)
+        tree.write(out_xml, xml_declaration=None, encoding='UTF-16')
+
+        # Import the generated xml into Windows task Scheduler via a subprocess.
+        self.import_task_to_win_task_sched(out_xml, task_name)
 
         # Remove the generated xml after it has been imported.
         os.remove(xml_name)
