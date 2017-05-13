@@ -28,7 +28,7 @@ import sqlalchemy
 def create_logger():
     """Creates and returns a logger. Errors are logged in schedules.log."""
     module_path = __file__
-    path, tail = os.path.split(module_path)
+    path = os.path.split(module_path)[0]
     log_path = r"{}\schedules.log".format(path)
 
     new_logger = logging.getLogger(__name__)
@@ -102,8 +102,8 @@ class ScheduledMerge(object):
             mail merge.
         """
 
-        path, tail = os.path.split(self.template_docx_file_path)
-        out_docx_path = r"{}\Merged_{}".format(path, tail)
+        head, tail = os.path.split(self.template_docx_file_path)
+        out_docx_path = r"{}\Merged_{}".format(head, tail)
 
         if os.path.isfile(out_docx_path):
             file_name, ext = os.path.splitext(tail)
@@ -275,6 +275,7 @@ def write_dict_to_config(config_path, config, sect, key, list_of_data):
 
 
 # pylint: disable=broad-except
+# pylint: disable=unused-variable
 def check_for_scheduled_merges():
     """This function runs when the script is run.
 
@@ -290,7 +291,7 @@ def check_for_scheduled_merges():
     """
 
     module_path = __file__
-    path, tail = os.path.split(module_path)
+    path = os.path.split(module_path)[0]
     config_path = r"{}\scheduled_merges.ini".format(path)
 
     config = configparser.ConfigParser()
@@ -306,12 +307,12 @@ def check_for_scheduled_merges():
 
         # If the schedules.ini file has been deleted, for whatever reason, this
         # will re-create the file.
-        except Exception as exception:
-            logger.exception("")
-            config[sect] = dict()
-            with open(config_path, 'w') as new_config_file:
-                config.write(new_config_file)
-                new_config_file.close()
+    except Exception as exception:
+        logger.exception("")
+        config[sect] = dict()
+        with open(config_path, 'w') as new_config_file:
+            config.write(new_config_file)
+            new_config_file.close()
 
         for key in config[sect]:
             dict_of_data = ast.literal_eval(config[sect][key])
@@ -336,7 +337,7 @@ def check_for_scheduled_merges():
                     dict_of_data = new_mer_obj.create_list_of_dicts_from_vars()
                     write_dict_to_config(
                         config_path, config, sect, key, dict_of_data)
-                        
+
                 # Use the general, Exception as exception, so that any error
                 # that occurs has its Traceback written to the schedules.log
                 # file.
