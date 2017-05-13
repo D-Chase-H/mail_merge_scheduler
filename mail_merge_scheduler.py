@@ -523,6 +523,8 @@ class ScheduledMerge(object):
                 "Saturday":soup.Saturday,
                 "Sunday":soup.Sunday}
             day_soupify = {k:v for k, v in day_soupify.items() if k not in days}
+            # the template xml starts off with all 7 days, this will remove the
+            # days that are not in self.sched_days.
             for val in day_soupify.values():
                 val.decompose()
 
