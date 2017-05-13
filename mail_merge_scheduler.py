@@ -2,7 +2,7 @@
 # This module is part of mail_merge_scheduler and is released under
 # the MIT License: http://www.opensource.org/licenses/mit-license.php
 
-"""This is the module that the user imports and uses to set up a scheduled
+"""This is the module that the user will import and use to set up a scheduled
 mail merges, with data taken from database types supported by sqlalchemy. It
 will write the information to the schedules.ini file and uses the xml template
 to schedule the task through Windows Task Scheduler. The user can also use this
@@ -44,13 +44,16 @@ def remove_scheduled_merge(scheduled_merge_key):
         KeyError: scheduled_merge_key.
     """
 
+    module_path = __file__
+    path, tail = os.path.split(module_path)
+    config_path = r"{}\scheduled_merges.ini".format(path)
     config = configparser.ConfigParser()
     config.optionxform = str
-    config.read("scheduled_merges.ini")
+    config.read(config_path)
     sect = "SCHEDULED_MERGES"
     del config[sect][scheduled_merge_key]
 
-    with open('scheduled_merges.ini', 'w') as config_file:
+    with open(config_path, 'w') as config_file:
         config.write(config_file)
         config_file.close()
 
@@ -102,6 +105,7 @@ class ScheduledMerge(object):
             the day the user wants the scheduled mail merge task to occur.
     """
 
+
     # pylint: disable=too-many-instance-attributes
     def __init__(
             self, db_connection_string, db_query,
@@ -140,6 +144,12 @@ class ScheduledMerge(object):
         self.week_int = None
         self.sched_days = []
         self.sched_time = None
+
+        # Path information for the location of the module, in order to find the
+        # location of the config file, schedules.ini.
+        module_path = __file__
+        self.path, tail = os.path.split(module_path)
+        self.config_path = r"{}\scheduled_merges.ini".format(self.path)
 
 
     # pylint: disable=too-many-arguments
@@ -299,7 +309,7 @@ class ScheduledMerge(object):
 
         config = configparser.ConfigParser()
         config.optionxform = str
-        config.read("scheduled_merges.ini")
+        config.read(self.config_path)
         sect = "SCHEDULED_MERGES"
 
         # Get all keys from the .ini file, so a duplicate key is not made.
@@ -444,7 +454,7 @@ class ScheduledMerge(object):
 
         days = [weekday_conv[d.weekday()] for d in days]
 
-        xml_template = "weekly_xml_schedule_template.xml"
+        xml_template = r"{}\weekly_xml_schedule_template.xml".format(self.path)
 
         dom = os.getenv("USERDOMAIN")
         user = os.getenv("USERNAME")
@@ -478,7 +488,7 @@ class ScheduledMerge(object):
             windowless_pyth_path = sys.executable
 
         # name of the script that Windows Task Scheduler will run.
-        script_name = "schedules.py"
+        script_name = r"{}\schedules.py".format(self.path)
 
         curr_dir = os.getcwd()
         curr_dir = r"{}".format(curr_dir)
@@ -524,7 +534,7 @@ class ScheduledMerge(object):
             if tag_name == "WorkingDirectory":
                 ele.text = curr_dir
 
-        xml_name = "out_xml.xml"
+        xml_name = r"{}\out_xml.xml".format(self.path)
         tree.write(xml_name, xml_declaration=None, encoding='UTF-16')
 
         # Import the generated xml into Windows task Scheduler via a subprocess
@@ -532,7 +542,7 @@ class ScheduledMerge(object):
         self.import_task_to_win_task_sched(xml_name, task_name)
 
         # Remove the generated xml after it has been imported.
-        os.remove("out_xml.xml")
+        os.remove(xml_name)
         return
 
 
@@ -560,7 +570,7 @@ class ScheduledMerge(object):
 
         # optionxform maintains upercase letters in strings for keys.
         config.optionxform = str
-        config.read("scheduled_merges.ini")
+        config.read(self.config_path)
         sect = "SCHEDULED_MERGES"
 
         # Shorten the config_key_id string if the length exceedes the maximum
@@ -569,7 +579,7 @@ class ScheduledMerge(object):
         config_key_id = config_key_id[:232]
         config[sect][config_key_id] = str(list_of_dicts_of_merge_data)
 
-        with open('scheduled_merges.ini', 'w') as config_file:
+        with open(self.config_path, 'w') as config_file:
             config.write(config_file)
             config_file.close()
 

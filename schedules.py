@@ -27,14 +27,19 @@ import sqlalchemy
 
 def create_logger():
     """Creates and returns a logger. Errors are logged in schedules.log."""
+    module_path = __file__
+    path, tail = os.path.split(module_path)
+    log_path = r"{}\schedules.log".format(path)
+
     new_logger = logging.getLogger(__name__)
     new_logger.setLevel(logging.ERROR)
 
-    seperator = "_"*80
+    seperator = ["_"]*80
+    seperator = ''.join(seperator)
     logger_format = "{}\n%(asctime)s\n%(message)s\n".format(seperator)
     formatter = logging.Formatter(logger_format)
 
-    file_handler = logging.FileHandler("schedules.log")
+    file_handler = logging.FileHandler(log_path)
     file_handler.setLevel(logging.ERROR)
     file_handler.setFormatter(formatter)
 
@@ -72,6 +77,7 @@ class ScheduledMerge(object):
             user would like the scheduled mail merge task to occur on.
     """
 
+
     # pylint: disable=too-many-instance-attributes
     def __init__(self):
 
@@ -87,7 +93,6 @@ class ScheduledMerge(object):
         self.week_int = None
         self.sched_days = []
 
-
     def generate_out_filename(self):
         """Creates a unique file name for the output docx file, that is used in
         the perform_mail_merge method below.
@@ -97,8 +102,8 @@ class ScheduledMerge(object):
             mail merge.
         """
 
-        head, tail = os.path.split(self.template_docx_file_path)
-        out_docx_path = r"{}\Merged_{}".format(head, tail)
+        path, tail = os.path.split(self.template_docx_file_path)
+        out_docx_path = r"{}\Merged_{}".format(path, tail)
 
         if os.path.isfile(out_docx_path):
             file_name, ext = os.path.splitext(tail)
@@ -259,11 +264,11 @@ class ScheduledMerge(object):
         return
 
 
-def write_dict_to_config(config, sect, key, list_of_data):
+def write_dict_to_config(config_path, config, sect, key, list_of_data):
     """Writes data as a list of dictionaries back to the schedules.ini file."""
 
     config[sect][key] = str(list_of_data)
-    with open('scheduled_merges.ini', 'w') as config_file:
+    with open(config_path, 'w') as config_file:
         config.write(config_file)
         config_file.close()
     return
@@ -284,19 +289,29 @@ def check_for_scheduled_merges():
         All Errors raised will be written to the schedules.log file.
     """
 
-    curr_dir = os.getcwd()
-    file_name = "scheduled_merges.ini"
-    full_path = r"{}\{}".format(curr_dir, file_name)
+    module_path = __file__
+    path, tail = os.path.split(module_path)
+    config_path = r"{}\scheduled_merges.ini".format(path)
+
     config = configparser.ConfigParser()
 
     # optionxform maintains upercase letters in strings for keys.
     config.optionxform = str
     sect = "SCHEDULED_MERGES"
-    config.read(file_name)
+    config.read(config_path)
 
     try:
-        if os.path.isfile(full_path) is False:
-            raise FileNotFoundError(full_path)
+        if os.path.isfile(config_path) is False:
+            raise FileNotFoundError(config_path)
+
+        # If the schedules.ini file has been deleted, for whatever reason, this
+        # will re-create the file.
+        except Exception as exception:
+            logger.exception("")
+            config[sect] = dict()
+            with open(config_path, 'w') as new_config_file:
+                config.write(new_config_file)
+                new_config_file.close()
 
         for key in config[sect]:
             dict_of_data = ast.literal_eval(config[sect][key])
@@ -319,22 +334,18 @@ def check_for_scheduled_merges():
                 try:
                     new_mer_obj.perform_mail_merge()
                     dict_of_data = new_mer_obj.create_list_of_dicts_from_vars()
-                    write_dict_to_config(config, sect, key, dict_of_data)
+                    write_dict_to_config(
+                        config_path, config, sect, key, dict_of_data)
+                        
                 # Use the general, Exception as exception, so that any error
                 # that occurs has its Traceback written to the schedules.log
                 # file.
                 except Exception as exception:
                     logger.exception("KEY_ID: %s", key)
-                    write_dict_to_config(config, sect, key, dict_of_data)
+                    write_dict_to_config(
+                        config_path, config, sect, key, dict_of_data)
 
-    # If the schedules.ini file has been deleted, for whatever reason, this will
-    # re-create the file.
-    except Exception as exception:
-        logger.exception("")
-        config[sect] = dict()
-        with open('scheduled_merges.ini', 'w') as new_config_file:
-            config.write(new_config_file)
-            new_config_file.close()
+
     return
 
 
