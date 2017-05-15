@@ -4,11 +4,11 @@
 
 """This is the module that the user will import and use to set up a scheduled
 mail merges, with data taken from database types supported by sqlalchemy. It
-will write the information to the schedules.ini file and uses the xml template
-to schedule the task through Windows Task Scheduler. The user can also use this
-module to remove scheduled mail merges from both the schedules.ini file and the
-Windows Task Scheduler, provided the name of the task, and the key in the
-schedules.ini file have not been altered.
+will write the information to the schedules_merges.ini file and uses the xml
+template to schedule the task through Windows Task Scheduler. The user can also
+use this module to remove scheduled mail merges from both the
+schedules_merges.ini file and the Windows Task Scheduler, provided the name of
+the task, and the key in the schedules_merges.ini file have not been altered.
 """
 
 # Standard library imports
@@ -30,13 +30,13 @@ import sqlalchemy
 def remove_scheduled_merge(scheduled_merge_key):
     """Removes a scheduled mail merge.
 
-    This function takes the key from an entry in the schedules.ini files,
+    This function takes the key from an entry in the schedules_merges.ini files,
     and removes it from the ini file, and deletes the task from the
     Windows Task Scheduler.
 
     Args:
         scheduled_merge_key: A string of a key from a scheduled merge in the
-            schedules.ini file.
+            schedules_merges.ini file.
 
     Returns:
         None.
@@ -51,15 +51,14 @@ def remove_scheduled_merge(scheduled_merge_key):
     config = configparser.ConfigParser()
     config.optionxform = str
     config.read(config_path)
-    sect = "SCHEDULED_MERGES"
-    del config[sect][scheduled_merge_key]
+    del config[scheduled_merge_key]
 
     with open(config_path, 'w') as config_file:
         config.write(config_file)
         config_file.close()
 
     # subprocess batch script to Windows Task Scheduler, to delete the task
-    # whose name correlates to the key id in the schedules.ini file.
+    # whose name correlates to the key id in the scheduled_merges.ini file.
     task = "schtasks.exe /delete /tn {} /f".format(scheduled_merge_key)
     process = subprocess.Popen(task, shell=False)
     process.wait()
@@ -147,7 +146,7 @@ class ScheduledMerge(object):
         self.sched_time = None
 
         # Path information for the location of the module, in order to find the
-        # location of the config file, schedules.ini.
+        # location of the config file, schedules_merges.ini.
         module_path = __file__
         self.path = os.path.split(module_path)[0]
         self.config_path = r"{}\scheduled_merges.ini".format(self.path)
@@ -278,43 +277,43 @@ class ScheduledMerge(object):
 
     def load_data_into_list_of_dicts(self):
         """Takes the instance attributes of the class, and converts them into
-        an appropriate format for storing in the schedules.ini file.
+        an appropriate format for storing in the schedules_merges.ini file.
 
         Returns:
             A list of dictionaries of attribute names and thier data. This
             format was chosen so the data stays in the same place in the
-            schedules.ini file, so it is easier to read.
+            schedules_merges.ini file, so it is easier to read.
         """
 
         # Create a list of dictionaries instead of a single dictionary, so the
-        # schedules.ini file has better human readability.
+        # schedules_merges.ini file has better human readability.
         days = [str(d) for d in self.sched_days]
         list_of_dicts = [
-            {"db_connection_string":self.db_connection_string},
-            {"db_query":self.db_query},
-            {"template_docx_file_path":self.template_docx_file_path},
-            {"output_docx_name":self.output_docx_name},
-            {"week_int":self.week_int},
-            {"sched_days":days}]
+            ("db_connection_string", self.db_connection_string),
+            ("db_query", self.db_query),
+            ("template_docx_file_path", self.template_docx_file_path),
+            ("output_docx_name", self.output_docx_name),
+            ("week_int", self.week_int),
+            ("sched_days", days)]
 
         return list_of_dicts
 
 
     def generate_unique_config_key_id(self):
-        """Creates a unique string to use as a key in the schedules.ini file.
+        """Creates a unique string to use as a key in the schedules_merges.ini
+        file.
 
         Returns:
-            A unique string that is used as the key in the schedules.ini file,
-            as well as for the task name in the Windows Task Scheduler.
+            A unique string that is used as the key in the schedules_merges.ini
+            file, as well as for the task name in the Windows Task Scheduler.
         """
 
         config = configparser.ConfigParser()
         config.optionxform = str
         config.read(self.config_path)
-        sect = "SCHEDULED_MERGES"
 
         # Get all keys from the .ini file, so a duplicate key is not made.
-        config_keys_set = set([i for i in config[sect]])
+        config_keys_set = set([i for i in config.sections()])
 
         prefix = "Scheduled_Mail_Merge_for"
         docx_name = os.path.basename(self.template_docx_file_path)
@@ -553,7 +552,7 @@ class ScheduledMerge(object):
     def generate_scheduled_merge(self):
         """Finalizes the scheduled mail merge.
 
-        Writes a dictionary of the intance attributes to the schedules.ini
+        Writes a dictionary of the intance attributes to the schedules_merges.ini
         file, and generates an xml from the template xml and imports the xml
         into Windows Task Scheduler.
 
@@ -567,20 +566,24 @@ class ScheduledMerge(object):
         # Do a quick check for errors before generating a scheduled mail merge.
         self.error_check_attributes()
 
-        # Make a list of dictionaries to be written to the schedules.ini file.
+        # Make a list of dictionaries to be written to the schedules_merges.ini file.
         list_of_dicts_of_merge_data = self.load_data_into_list_of_dicts()
         config = configparser.ConfigParser()
 
         # optionxform maintains upercase letters in strings for keys.
         config.optionxform = str
         config.read(self.config_path)
-        sect = "SCHEDULED_MERGES"
 
         # Shorten the config_key_id string if the length exceedes the maximum
         # length for a task name in Windows Task Scheduler of 232 characters.
         config_key_id = self.generate_unique_config_key_id()
         config_key_id = config_key_id[:232]
-        config[sect][config_key_id] = str(list_of_dicts_of_merge_data)
+
+        config[config_key_id] = dict()
+        for key, value in list_of_dicts_of_merge_data:
+            if isinstance(value, str):
+                value = 'r"{}"'.format(value)
+            config[config_key_id][str(key)] = str(value)
 
         with open(self.config_path, 'w') as config_file:
             config.write(config_file)
