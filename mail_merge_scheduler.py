@@ -361,7 +361,7 @@ class ScheduledMerge(object):
     def generate_list_of_next_days(self, days):
         """Given the list of days, this method finds when the next occurance of
         those days of the week, and converts them into datetime objects and
-        returns a list of datetime objects.
+        appends them to a list.
 
         Args:
             days: A list of strings indicating the days of the week that the
@@ -380,38 +380,35 @@ class ScheduledMerge(object):
         start_hour = self.sched_time.hour
         start_minute = self.sched_time.minute
         start_day = self.start_day
+        start_time = time(hour=start_hour, minute=start_minute)
+        curr_time = datetime.now().time()
         start_day_num = self.start_day.weekday()
+        week_int = self.week_int
         datetime_days = []
 
         for day in days:
             day_num = weekday_conv[day]
-            if start_day_num > day_num:
-                next_day_num = 6 - (start_day_num - abs(start_day_num -
-                                                        day_num))
 
-            elif start_day_num < day_num:
-                next_day_num = 7 - (start_day_num + abs(start_day_num -
-                                                        day_num))
-
-            elif start_day_num == day_num:
-                now = datetime.today().time()
-                curr_hour = now.hour
-                curr_minute = now.minute
-                if curr_hour <= start_hour and curr_minute < start_minute:
-                    next_day_num = 0
+            if day_num == start_day_num:
+                if curr_time >= start_time:
+                    new_day = start_day + timedelta(weeks=week_int)
                 else:
-                    next_day_num = 7
+                    new_day = start_day
 
-            start_day_copy = start_day
-            start_day_copy += timedelta(days=next_day_num)
-            start_day_copy = str(start_day_copy)
-            year, month, day = map(int, start_day_copy.split("-"))
+            else:
+                diff = start_day_num - day_num
+                new_day = start_day
+                if diff < 0:
+                    new_day -= timedelta(days=diff)
+                else:
+                    new_day += timedelta(weeks=week_int)
+                    new_day -= timedelta(days=diff)
 
-            next_day = datetime(
-                year=year, month=month, day=day,
-                hour=start_hour, minute=start_minute)
+            year, month, day = map(int, str(new_day).split("-"))
+            new_day = datetime(year=year, month=month, day=day,
+                               hour=start_hour, minute=start_minute)
 
-            datetime_days.append(next_day)
+            datetime_days.append(new_day)
 
         return datetime_days
 
@@ -552,9 +549,9 @@ class ScheduledMerge(object):
     def generate_scheduled_merge(self):
         """Finalizes the scheduled mail merge.
 
-        Writes a dictionary of the intance attributes to the schedules_merges.ini
-        file, and generates an xml from the template xml and imports the xml
-        into Windows Task Scheduler.
+        Writes a dictionary of the intance attributes to the
+        schedules_merges.ini file, and generates an xml from the template xml
+        and imports the xml into Windows Task Scheduler.
 
         Returns:
             None.
@@ -566,7 +563,8 @@ class ScheduledMerge(object):
         # Do a quick check for errors before generating a scheduled mail merge.
         self.error_check_attributes()
 
-        # Make a list of dictionaries to be written to the schedules_merges.ini file.
+        # Make a list of dictionaries to be written to the schedules_merges.ini
+        # file.
         list_of_dicts_of_merge_data = self.load_data_into_list_of_dicts()
         config = configparser.ConfigParser()
 
