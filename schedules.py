@@ -94,6 +94,7 @@ class ScheduledMerge(object):
         self.week_int = week_int
         self.sched_days = sched_days
 
+
     def generate_out_filename(self):
         """Creates a unique file name for the output docx file, that is used in
         the perform_mail_merge method below.
@@ -239,6 +240,8 @@ def write_dict_to_config(config_path, config, config_key_id, dict_of_data):
         config.write(config_file)
         config_file.close()
     return
+
+
 
 # pylint: disable=too-many-locals
 # pylint: disable=broad-except
