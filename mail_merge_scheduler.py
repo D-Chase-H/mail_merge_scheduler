@@ -664,7 +664,15 @@ class ScheduledMerge(object):
         if match is not None:
             return match
 
-        prefix = "Scheduled_Mail_Merge_at"
+        weekday_conv = {
+            0:"Monday", 1:"Tuesday", 2:"Wednesday", 3:"Thursday",
+            4:"Friday", 5:"Saturday", 6:"Sunday"}
+        days = [weekday_conv[i.weekday()] for i in self.sched_days]
+        days = [i[:3] for i in days]
+        days = ",".join(days)
+        days = "[{}]".format(days)
+
+        prefix = "Scheduled_Mail_Merge_{}_at".format(days)
         hour = self.sched_time.hour
         minute = self.sched_time.minute
         week_int = self.week_int
