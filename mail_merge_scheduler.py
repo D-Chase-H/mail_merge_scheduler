@@ -12,6 +12,7 @@ the task, and the key in the schedules_merges.ini file have not been altered.
 """
 
 # Standard library imports
+import ast
 import configparser
 from datetime import time
 from datetime import date
@@ -22,6 +23,7 @@ import sys
 import subprocess
 # Third-party imports
 from bs4 import BeautifulSoup
+from dateutil.parser import parse
 from lxml import etree
 import sqlalchemy
 
@@ -32,7 +34,8 @@ def remove_scheduled_merge(scheduled_merge_key):
 
     This function takes the key from an entry in the schedules_merges.ini files,
     and removes it from the ini file, and deletes the task from the
-    Windows Task Scheduler.
+    Windows Task Scheduler, if there are no other scheduled mail merges that
+    share the same task_name as the the one that is being deleted.
 
     Args:
         scheduled_merge_key: A string of a key from a scheduled merge in the
@@ -47,11 +50,21 @@ def remove_scheduled_merge(scheduled_merge_key):
 
     module_path = __file__
     path = os.path.split(module_path)[0]
-    config_path = r"{}\scheduled_merges.ini".format(path)
+
     config = configparser.ConfigParser()
+    # config.optionxform maintains upercase letters in strings for keys.
     config.optionxform = str
+    config_path = r"{}\scheduled_merges.ini".format(path)
     config.read(config_path)
+
+    del_task_name = config[scheduled_merge_key]["task_name"]
     del config[scheduled_merge_key]
+
+    count_of_shared_task_names = 0
+    for sect in config.sections():
+        task = config[sect]["task_name"]
+        if task == del_task_name:
+            count_of_shared_task_names += 1
 
     with open(config_path, 'w') as config_file:
         config.write(config_file)
@@ -59,9 +72,12 @@ def remove_scheduled_merge(scheduled_merge_key):
 
     # subprocess batch script to Windows Task Scheduler, to delete the task
     # whose name correlates to the key id in the scheduled_merges.ini file.
-    task = "schtasks.exe /delete /tn {} /f".format(scheduled_merge_key)
-    process = subprocess.Popen(task, shell=False)
-    process.wait()
+    if count_of_shared_task_names == 0:
+        # Strip the r and the front and end double-quotes in the task_name.
+        del_task_name = del_task_name[2:-1]
+        task = "schtasks.exe /delete /tn {} /f".format(del_task_name)
+        process = subprocess.Popen(task, shell=False)
+        process.wait()
     return
 
 
@@ -103,6 +119,10 @@ class ScheduledMerge(object):
             user would like the scheduled mail merge task to occur on.
         sched_time: A datetime.time object indicating the hour and minute of
             the day the user wants the scheduled mail merge task to occur.
+        self.task_name: The name used for the scheduled task in Windows Task
+            Scheduler.
+        self.path: The full path to the directory/folder where this module is
+            located.
     """
 
 
@@ -110,22 +130,12 @@ class ScheduledMerge(object):
     def __init__(
             self, db_connection_string, db_query,
             template_docx_file_path, output_docx_name=None):
-        """Init for ScheduledMerge
+        """Init for ScheduledMerge.
+
         Raises:
             sqlalchemy.exc.OperationalError: no such table.
             FileNotFoundError: template_docx_file_path.
         """
-
-        # Check if the given connection string and query are valid.
-        # If invalid, sqlalchemy will raise an error.
-        engine = sqlalchemy.create_engine(db_connection_string)
-        engine = engine.connect()
-        engine.execute(db_query)
-        engine.close()
-
-        # Check if the docx file path is valid.
-        if os.path.isfile(template_docx_file_path) is False:
-            raise FileNotFoundError(template_docx_file_path)
 
         ## Database Information
         self.db_connection_string = db_connection_string
@@ -144,12 +154,36 @@ class ScheduledMerge(object):
         self.week_int = None
         self.sched_days = []
         self.sched_time = None
+        self.task_name = None
 
         # Path information for the location of the module, in order to find the
         # location of the config file, schedules_merges.ini.
         module_path = __file__
         self.path = os.path.split(module_path)[0]
-        self.config_path = r"{}\scheduled_merges.ini".format(self.path)
+
+        self.error_check_init_attributes()
+
+
+    def error_check_init_attributes(self):
+        """Check for errors in the __init__ args.
+
+        Returns:
+            None.
+        Raises:
+            sqlalchemy.exc.OperationalError: no such table.
+            FileNotFoundError: template_docx_file_path.
+        """
+
+        # Check if the given connection string and query are valid.
+        # If invalid, sqlalchemy will raise an error.
+        engine = sqlalchemy.create_engine(self.db_connection_string)
+        engine = engine.connect()
+        engine.execute(self.db_query)
+        engine.close()
+
+        # Check if the docx file path is valid.
+        if os.path.isfile(self.template_docx_file_path) is False:
+            raise FileNotFoundError(self.template_docx_file_path)
 
 
     # pylint: disable=too-many-arguments
@@ -294,7 +328,8 @@ class ScheduledMerge(object):
             ("template_docx_file_path", self.template_docx_file_path),
             ("output_docx_name", self.output_docx_name),
             ("week_int", self.week_int),
-            ("sched_days", days)]
+            ("sched_days", days),
+            ("task_name", self.task_name)]
 
         return list_of_dicts
 
@@ -309,8 +344,10 @@ class ScheduledMerge(object):
         """
 
         config = configparser.ConfigParser()
+        # config.optionxform maintains upercase letters in strings for keys.
         config.optionxform = str
-        config.read(self.config_path)
+        config_path = r"{}\scheduled_merges.ini".format(self.path)
+        config.read(config_path)
 
         # Get all keys from the .ini file, so a duplicate key is not made.
         config_keys_set = set([i for i in config.sections()])
@@ -339,7 +376,8 @@ class ScheduledMerge(object):
 
     # pylint: disable=no-self-use
     def import_task_to_win_task_sched(self, xml_name, task_name):
-        """Imports an xml into Windows Task Scheduler via a subprocess.
+        """Imports an xml into Windows Task Scheduler via a subprocess using
+        self.task_name for the name of the task.
 
         Args:
             xml_name: A string of the file name of xml that was generated, to
@@ -351,8 +389,14 @@ class ScheduledMerge(object):
             None.
         """
 
+        # fnull supresses schtasks.exe from printing to stdout.
+        # This is to prevent confusion when schtasks.exe prints an error
+        # messages when there is a shared task_name with another scheduled mail
+        # merge.
+        fnull = open(os.devnull, 'w')
         task = "schtasks.exe /create /XML {} /tn {}".format(xml_name, task_name)
-        process = subprocess.Popen(task, shell=False)
+        process = subprocess.Popen(
+            task, shell=False, stdout=fnull, stderr=subprocess.STDOUT)
         process.wait()
         return
 
@@ -463,15 +507,15 @@ class ScheduledMerge(object):
             None.
 
         Raises:
-            If the weekly_xml_schedule_template.xml is edited, it may raise
-                errors pertaining to the Windows Task Scheduler xml schema. If
-                you would like to edit this xml, you can find information on
-                how to do so here:
-                https://msdn.microsoft.com/en-us/library/windows/desktop/aa38360
-                9(v=vs.85).aspx .
+            If the xml_schedule_template.xml is edited, it may raise
+            errors pertaining to the Windows Task Scheduler xml schema. If
+            you would like to edit this xml, you can find information on
+            how to do so here:
+            https://msdn.microsoft.com/en-us/library/windows/desktop/aa383609(v=
+            vs.85).aspx .
         """
 
-        xml_template = r"{}\weekly_xml_schedule_template.xml".format(self.path)
+        xml_template = r"{}\xml_schedule_template.xml".format(self.path)
         next_date = self.start_day
         next_time = self.sched_time
         week_int = self.week_int
@@ -545,6 +589,114 @@ class ScheduledMerge(object):
         return
 
 
+    def find_tasks_with_same_schedule(self):
+        """Search scheduled_merges.ini for any tasks that share a task_name.
+        This is done by comparing the sched_days, week_int, and sched_time
+        attributes against those in the config file, to see if they occur at
+        the same time, irregardless of the start_day attribute. This is because
+        everytime schedules.py is run by Windows Task Scheduler, all
+        sections/keys in the config file are checked. This reduces redundant
+        call to schedules.py from Windows Task Scheduler, which significantly
+        improves performance.
+
+        Returns:
+            Either a string of a shared task name or None.
+
+        Raises:
+            None.
+        """
+
+        days = self.sched_days
+        test_day = days[0]
+        day_of_week = test_day.weekday()
+        test_hour = self.sched_time.hour
+        test_minute = self.sched_time.minute
+        week_int1 = self.week_int
+        weekday_compare1 = [i.weekday() for i in days]
+
+        config = configparser.ConfigParser()
+        # config.optionxform maintains upercase letters in strings for keys.
+        config.optionxform = str
+        config_path = r"{}\scheduled_merges.ini".format(self.path)
+        config.read(config_path)
+
+        for key in config.sections():
+            week_int2 = ast.literal_eval(config[key]["week_int"])
+            sched_days = ast.literal_eval(config[key]["sched_days"])
+            sched_days = [parse(item) for item in sched_days]
+            weekday_compare2 = [i.weekday() for i in sched_days]
+
+            if weekday_compare1 != weekday_compare2 or week_int1 != week_int2:
+                continue
+
+            compare_day = None
+            for comp_day in sched_days:
+                if comp_day.weekday() == day_of_week:
+                    compare_day = comp_day
+                    break
+
+            day_diff = abs(test_day - compare_day).days
+
+            compare_hour = compare_day.hour
+            compare_minute = compare_day.minute
+            time_diff = (test_hour - compare_hour)
+            time_diff += (test_minute - compare_minute)
+
+            if (day_diff / 7) % week_int1 == 0 and time_diff == 0:
+                match = ast.literal_eval(config[key]["task_name"])
+                return match
+
+
+    def generate_task_name(self):
+        """This method will first search the scheduled_merges.ini file to find
+        if there is another scheduled merge that shares a task_name, if not a
+        new and unique name task name will be generated.
+
+        Returns:
+            A string to be used as the name for the scheduled mail merge task
+            in Windows Task Scheduler.
+
+        Raises:
+            None
+        """
+
+        match = self.find_tasks_with_same_schedule()
+        if match is not None:
+            return match
+
+        prefix = "Scheduled_Mail_Merge_at"
+        hour = self.sched_time.hour
+        minute = self.sched_time.minute
+        week_int = self.week_int
+
+        config = configparser.ConfigParser()
+        # config.optionxform maintains upercase letters in strings for keys.
+        config.optionxform = str
+        config_path = r"{}\scheduled_merges.ini".format(self.path)
+        config.read(config_path)
+
+        tasks = []
+        for key in config.sections():
+            tasks.append(config[key]["task_name"])
+        tasks = set(tasks)
+        id_num = 1
+        front = "{}_{}-{}_every_{}_week(s)".format(
+            prefix, hour, minute, week_int)
+        task_name = 'r"{}_{}"'.format(front, id_num)
+
+        # If the task_name already exists, keep adding 1 to id_num, until a
+        # unique key is found.
+        while True:
+            if task_name in tasks:
+                id_num += 1
+                task_name = 'r"{}_{}"'.format(front, id_num)
+            else:
+                task_name = "{}_{}".format(front, id_num)
+                break
+
+        return task_name
+
+
     # pylint: disable=too-many-locals
     def generate_scheduled_merge(self):
         """Finalizes the scheduled mail merge.
@@ -563,14 +715,17 @@ class ScheduledMerge(object):
         # Do a quick check for errors before generating a scheduled mail merge.
         self.error_check_attributes()
 
+        self.task_name = self.generate_task_name()
+
         # Make a list of dictionaries to be written to the schedules_merges.ini
         # file.
         list_of_dicts_of_merge_data = self.load_data_into_list_of_dicts()
-        config = configparser.ConfigParser()
 
-        # optionxform maintains upercase letters in strings for keys.
+        config = configparser.ConfigParser()
+        # config.optionxform maintains upercase letters in strings for keys.
         config.optionxform = str
-        config.read(self.config_path)
+        config_path = r"{}\scheduled_merges.ini".format(self.path)
+        config.read(config_path)
 
         # Shorten the config_key_id string if the length exceedes the maximum
         # length for a task name in Windows Task Scheduler of 232 characters.
@@ -583,11 +738,11 @@ class ScheduledMerge(object):
                 value = 'r"{}"'.format(value)
             config[config_key_id][str(key)] = str(value)
 
-        with open(self.config_path, 'w') as config_file:
+        with open(config_path, 'w') as config_file:
             config.write(config_file)
             config_file.close()
 
         # Create an xml, from the template xml, that will be used to import
         # into Windows Task Scheduler.
-        self.xml_gen(str(config_key_id))
+        self.xml_gen(self.task_name)
         return
