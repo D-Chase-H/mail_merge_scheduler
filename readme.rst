@@ -1,5 +1,5 @@
 ===========================
-Mail_Merge_Scheduler - v1.0.0 pre-release
+Mail_Merge_Scheduler - v1.0.0 Beta
 ===========================
 
 Allows the user, to programmatically create a task for Windows Task Scheduler,
@@ -132,7 +132,11 @@ You will need 3 things.
     from mail_merge_scheduler import ScheduledMerge
 
     database_connection_string = r"sqlite:///F:\\sql_lite\\MyDataBases\\testsqldb.db"
-    query = "SELECT * FROM {} WHERE col1 < 10".format("table1")
+
+    table = "inspections"
+    
+    query_tail = "dtdatetime >= DATEADD(HOUR, -6, GETDATE()) AND dtdatetime <  DATEADD(HOUR, 0, GETDATE())"
+    query = "SELECT * FROM {} WHERE {}".format(table, query_tail)
 
     # Provide the full path to the template docx file.
     template_docx_path = r"F:\Scheduled Mail Merges\Daily Documentation\JohnDoe Mon-Fri 415pm\Inspections.docx"
@@ -145,10 +149,10 @@ Optionally:
  "Merged" + the name of the template .docx document + a number In the above
  example, the docx file created from the mail merge would be named,
  Merged_Building Inspections_1.docx.
-NOTE: 
+NOTE:
  The mail merged .docx document is saved in the same folder as the template .docx document.
 
-NOTE: 
+NOTE:
  If there is already a Merged_Building Inspections_1.docx in that folder,
  then +1 will be added to the trailing number until it finds a file without
  that name.
@@ -183,27 +187,32 @@ Finally, generate the scheduled mail merge and you're done!
 ========================================
 ========================================
 
-Scheduled mail merges can be reviewed, edited, or even manually entered in the
-schedules.ini file. Although you can manually enter in new scheduled mail
-merges, it is recommended to use the mail_merge_scheduler.py module to add new
-scheduled mail merges. This is because mail_merge_scheduler.py has error
-checking for input to ensure everything will run smoothly.
+Scheduled mail merges can be reviewed or edited in the schedules.ini file.
+Although you can manually enter in data, it is recommended to use the
+mail_merge_scheduler.py module to add new scheduled mail merges. Otherwise the
+task will not actually be scheduled in Windows Task Scheduler. Also,
+mail_merge_scheduler.py has error checking for input to ensure everything will
+run smoothly. It is advised not to manually edit the sched_days, week_int, or
+task_name variables, because it could conflict with the shared task names,
+feature, which could cause issues with creating and deleting scheduled mail
+merges. The config file is mostly for convience for those who know how to use
+it, and understand how the mail_merge_scheduler library works.
 
 The config file will look like this.
 ::
-    [SCHEDULED_MERGES]
-    Scheduled_Mail_Merge_for_Building
-    Inspections.docx_at_16_15_every_1_week(s)_1 = [{'db_connection_string':
-    'sqlite:///F:\\sql_lite\\MyDataBases\\testsqldb.db'}, {'db_query': 'SELECT
-    * FROM table1 WHERE col1 < 10'}, {'template_docx_file_path': 'F:\Scheduled
-    Mail Merges\Daily Documentation\JohnDoe Mon-Fri 415pm\Inspections.docx'},
-    {'output_docx_name': None}, {'week_int': 1}, {'sched_days':
-    ['2017-04-24 16:15:00', '2017-04-25 16:15:00', '2017-04-26
-    16:15:00', '2017-04-27 16:15:00', '2017-04-28 16:15:00']}]
-    
+    [Scheduled_Mail_Merge_for_Building Inspections.docx_at_16_15_every_1_week(s)_1]
+    db_connection_string = r"sqlite:///F:\\sql_lite\\MyDataBases\\testsqldb.db"
+    db_query = r"SELECT * FROM inspections WHERE dtdatetime >= DATEADD(HOUR, -6, GETDATE()) AND dtdatetime <  DATEADD(HOUR, 0, GETDATE())"
+    template_docx_file_path = r"F:\Scheduled Mail Merges\Daily Documentation\JohnDoe Mon-Fri 415pm\Inspections.docx"
+    output_docx_name = None
+    week_int = 1
+    sched_days = ['2017-04-24 16:15:00', '2017-04-25 16:15:00', '2017-04-26, 16:15:00', '2017-04-27 16:15:00', '2017-04-28 16:15:00']
+    task_name = r"Scheduled_Mail_Merge_[Mon,Tue,Wed,Thu,Fri]_at_16-13_every_1_week(s)_1"
 
-NOTE: 
- The script that will be called from Windows Task Scheduler is schedules.py, 
+
+
+NOTE:
+ The script that will be called from Windows Task Scheduler is schedules.py,
  which is not the same script that the user will use to set up a new scheduled mail merge.
 
 Since sometimes files get deleted, the end-user may manually enter in incorrect

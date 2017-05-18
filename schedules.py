@@ -27,14 +27,19 @@ import sqlalchemy
 
 def create_logger():
     """Creates and returns a logger. Errors are logged in schedules.log."""
+    module_path = __file__
+    path = os.path.split(module_path)[0]
+    log_path = r"{}\schedules.log".format(path)
+
     new_logger = logging.getLogger(__name__)
     new_logger.setLevel(logging.ERROR)
 
-    seperator = "_"*80
+    seperator = ["_"]*80
+    seperator = ''.join(seperator)
     logger_format = "{}\n%(asctime)s\n%(message)s\n".format(seperator)
     formatter = logging.Formatter(logger_format)
 
-    file_handler = logging.FileHandler("schedules.log")
+    file_handler = logging.FileHandler(log_path)
     file_handler.setLevel(logging.ERROR)
     file_handler.setFormatter(formatter)
 
@@ -50,7 +55,7 @@ logger = create_logger()
 
 class ScheduledMerge(object):
     """Object containing methods for loading and processing data found in the
-    schedules.ini file.
+    schedules_merges.ini file.
 
     Attributes:
         db_connection_string: A connection string that can be used to connect
@@ -72,20 +77,22 @@ class ScheduledMerge(object):
             user would like the scheduled mail merge task to occur on.
     """
 
-    # pylint: disable=too-many-instance-attributes
-    def __init__(self):
+
+    # pylint: disable=too-many-arguments
+    def __init__(self, db_connection_string, db_query, template_docx_file_path,
+                 output_docx_name, week_int, sched_days):
 
         ## Database Information
-        self.db_connection_string = ""
-        self.db_query = ""
+        self.db_connection_string = db_connection_string
+        self.db_query = db_query
 
         ## Path Information
-        self.template_docx_file_path = ""
-        self.output_docx_name = None
+        self.template_docx_file_path = template_docx_file_path
+        self.output_docx_name = output_docx_name
 
         ## Scheduling Information
-        self.week_int = None
-        self.sched_days = []
+        self.week_int = week_int
+        self.sched_days = sched_days
 
 
     def generate_out_filename(self):
@@ -117,72 +124,32 @@ class ScheduledMerge(object):
         return out_docx_path
 
 
-    def populate_from_dict(self, list_of_dicts):
-        """Populates the attributes in a ScheduledMerge object with data from
-        the schedules.ini config file.
-
-        Takes a dictionary of data from the schedules.ini file and
-        assigns it to the appropriate instance attributes. Also, tests the
-        input from the dictionary, to check if it is a valid input for the
-        instance attribute. If there is an error, it is logged in the
-        schedules.log file.
-
-        Args:
-            list_of_dicts: A list of dictionaries with keys that correlate with
-                the names of the class attributes and values of the data for
-                that attribute.
-
-        Returns:
-            None.
-        """
-
-        # Convert the list of dictionaries into a single dictionary.
-        data_dict = {}
-        for item in list_of_dicts:
-            data_dict.update(item)
-
-        self.db_connection_string = data_dict["db_connection_string"]
-        self.db_query = data_dict["db_query"]
-        self.template_docx_file_path = data_dict["template_docx_file_path"]
-        self.output_docx_name = data_dict["output_docx_name"]
-        self.week_int = int(data_dict["week_int"])
-
-        # Parse the string representations of datetimes into datetime objects.
-        sched_days = data_dict["sched_days"]
-        self.sched_days = [parse(item) for item in sched_days]
-        return
-
-
-    def create_list_of_dicts_from_vars(self):
-        """Writes updated data back to the schedules.ini config file.
+    def create_dict_of_data_from_vars(self):
+        """Writes updated data back to the schedules_merges.ini config file.
 
         If any data is updated, this method converts all the instance
-        attributes into a list of dictionaries so the list can be used to
-        overwrite the data for this object in the schedules.ini file.
+        attributes into a dictionary so the list can be used to
+        overwrite the data for this object in the schedules_merges.ini file.
 
         Returns:
-            list_of_dicts: A list of dictionaries with keys that correlate with
+            dict_of_data: A dictionary with keys that correlate with
                 the names of the class attributes and values of the data for
                 that attribute.
         """
 
-        # Maunually create a list of dictionaries for each attribute to
-        # maintain consistency in the schedules.ini file, has better human
-        # readability.
-
         days = [str(d) for d in self.sched_days]
-        list_of_dicts = [
-            {"db_connection_string":self.db_connection_string},
-            {"db_query":self.db_query},
-            {"template_docx_file_path":self.template_docx_file_path},
-            {"output_docx_name":self.output_docx_name},
-            {"week_int":self.week_int},
-            {"sched_days":days}]
-        return list_of_dicts
+        dict_of_data = {
+            "db_connection_string":self.db_connection_string,
+            "db_query":self.db_query,
+            "template_docx_file_path":self.template_docx_file_path,
+            "output_docx_name":self.output_docx_name,
+            "week_int":self.week_int,
+            "sched_days":days}
+        return dict_of_data
 
 
     def compare_time_to_sched_days(self):
-        """Checks sched_days to see if a mail merge needs to be performed.
+        """Checks self.sched_days to see if a mail merge needs to be performed.
 
         Compares the current datetime to all datetimes in the sched_days
         instance attribute, to check if the there is a merge scheduled for
@@ -259,22 +226,31 @@ class ScheduledMerge(object):
         return
 
 
-def write_dict_to_config(config, sect, key, list_of_data):
-    """Writes data as a list of dictionaries back to the schedules.ini file."""
+def write_dict_to_config(config_path, config, config_key_id, dict_of_data):
+    """Writes data as a list of dictionaries back to the schedules_merges.ini
+    file.
+    """
 
-    config[sect][key] = str(list_of_data)
-    with open('scheduled_merges.ini', 'w') as config_file:
+    for key, value in dict_of_data.items():
+        if isinstance(value, str):
+            value = 'r"{}"'.format(value)
+        config[config_key_id][key] = str(value)
+
+    with open(config_path, 'w') as config_file:
         config.write(config_file)
         config_file.close()
     return
 
 
+
+# pylint: disable=too-many-locals
 # pylint: disable=broad-except
+# pylint: disable=unused-variable
 def check_for_scheduled_merges():
     """This function runs when the script is run.
 
-    Loads and iterates through the dictionaries in the schedules.ini file,
-    and checks if there is a mail merge scheduled for right now, if so, it
+    Loads and iterates through the dictionaries in the schedules_merges.ini
+    file, and checks if there is a mail merge scheduled for right now, if so, it
     performs the mail merge and updates the datetimes in the list of
     sched_days, and overwrites that dictionary with the updated data.
 
@@ -284,57 +260,59 @@ def check_for_scheduled_merges():
         All Errors raised will be written to the schedules.log file.
     """
 
-    curr_dir = os.getcwd()
-    file_name = "scheduled_merges.ini"
-    full_path = r"{}\{}".format(curr_dir, file_name)
+    module_path = __file__
+    path = os.path.split(module_path)[0]
+    config_path = r"{}\scheduled_merges.ini".format(path)
     config = configparser.ConfigParser()
 
     # optionxform maintains upercase letters in strings for keys.
     config.optionxform = str
-    sect = "SCHEDULED_MERGES"
-    config.read(file_name)
+    config.read(config_path)
 
     try:
-        if os.path.isfile(full_path) is False:
-            raise FileNotFoundError(full_path)
+        if os.path.isfile(config_path) is False:
+            raise FileNotFoundError(config_path)
+    # If the scheduled_merges.ini file has been deleted, for whatever reason,
+    # this will re-create the file.
+    except Exception as exception:
+        logger.exception("")
+        with open(config_path, 'w') as new_config_file:
+            config.write(new_config_file)
+            new_config_file.close()
 
-        for key in config[sect]:
-            dict_of_data = ast.literal_eval(config[sect][key])
-            new_mer_obj = ScheduledMerge()
+    for key in config.sections():
+        try:
+            dict_of_data = [ast.literal_eval(v) for v in config[key].values()]
+            db_connection_string = dict_of_data[0]
+            db_query = dict_of_data[1]
+            template_docx_file_path = dict_of_data[2]
+            output_docx_name = dict_of_data[3]
+            week_int = dict_of_data[4]
+            sched_days = [parse(item) for item in dict_of_data[5]]
 
-            try:
-                new_mer_obj.populate_from_dict(dict_of_data)
-
-            # Use the general, Exception as exception, so that any error that
-            # occurs has its Traceback written to the schedules.log file.
-            # pylint: disable=unused-variable
-            except Exception as exception:
-                logger.exception("KEY_ID: %s", key)
-                continue
+            new_mer_obj = ScheduledMerge(
+                db_connection_string,
+                db_query,
+                template_docx_file_path,
+                output_docx_name,
+                week_int,
+                sched_days)
 
             # do_merge returns a boolean to determine if a merge should be done.
             do_merge = new_mer_obj.compare_time_to_sched_days()
 
             if do_merge is True:
-                try:
-                    new_mer_obj.perform_mail_merge()
-                    dict_of_data = new_mer_obj.create_list_of_dicts_from_vars()
-                    write_dict_to_config(config, sect, key, dict_of_data)
-                # Use the general, Exception as exception, so that any error
-                # that occurs has its Traceback written to the schedules.log
-                # file.
-                except Exception as exception:
-                    logger.exception("KEY_ID: %s", key)
-                    write_dict_to_config(config, sect, key, dict_of_data)
+                new_mer_obj.perform_mail_merge()
+                dict_of_data = new_mer_obj.create_dict_of_data_from_vars()
+                write_dict_to_config(
+                    config_path, config, key, dict_of_data)
 
-    # If the schedules.ini file has been deleted, for whatever reason, this will
-    # re-create the file.
-    except Exception as exception:
-        logger.exception("")
-        config[sect] = dict()
-        with open('scheduled_merges.ini', 'w') as new_config_file:
-            config.write(new_config_file)
-            new_config_file.close()
+        # Use the general, Exception as exception, so that any error
+        # that occurs has its Traceback written to the schedules.log
+        # file.
+        except Exception as exception:
+            logger.exception("KEY_ID: %s", key)
+
     return
 
 
