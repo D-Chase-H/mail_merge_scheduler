@@ -242,7 +242,7 @@ Wish List
 Credits
 =======
 
-This library was created by `Dustin Chase Harmon`. I go by Chase.
+This library was created by GitHub User, D-Chase-H.
 
     * My LinkedIn: www.linkedin.com/in/dustinchaseharmon
 
