@@ -233,7 +233,6 @@ See the LICENSE file for details.
 Planned Features - Distant/Near Future
 ======================================
 * Pip installation.
-* A gui, which is already in the works.
 
 Wish List
 =========
