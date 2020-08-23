@@ -257,7 +257,7 @@ Please, send a pull request with your changes, and comments are appreciated.
 Acknowledgments
 ===============
 
-- I'd like to thank my brother Adam for encouraging me to teach myself
+- I'd like to thank my brother for encouraging me to teach myself
   programming.
 - The programming community in general for providing a plethora of tutorials
   and information so anyone can teach themselves programming.
